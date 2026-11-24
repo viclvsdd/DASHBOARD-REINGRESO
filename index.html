@@ -16,87 +16,125 @@
       <p>Dashboard interactivo y gestión de contactos</p>
     </header>
 
-    <!-- DASHBOARD -->
-    <section class="dashboard-grid no-print" id="dashboard-view">
+    <!-- DASHBOARD CON PESTAÑAS INTERNAS -->
+    <section class="dashboard-section no-print">
       
-      <div class="dashboard-header-actions" style="grid-column: 1 / -1; display: flex; justify-content: flex-end; margin-bottom: -5px; z-index: 10;">
-        <button class="btn-secondary" onclick="exportarEstadisticasExcel()" style="background-color: var(--success); color: white; border: none; font-weight: bold;">
-          Exportar Estadísticas a Excel
-        </button>
+      <!-- Pestañas internas del Dashboard -->
+      <div class="dashboard-tabs" id="dash-tabs">
+        <button class="dash-tab active" data-dash="resumen">Resumen</button>
+        <button class="dash-tab" data-dash="detalle">Detalle</button>
+        <button class="dash-tab" data-dash="progreso">Progreso</button>
       </div>
 
-      <div class="kpi-column">
-        <div class="kpi-card" onclick="filtrarPorPestana('todos')" title="Ver todos los clientes">
-          <div class="kpi-info">
-            <span class="kpi-title">Total Clientes</span>
-            <span class="kpi-value" id="kpi-total">0</span>
-            <span class="kpi-sub">Base de datos</span>
-          </div>
-          <div class="kpi-icon icon-user">T</div>
-        </div>
+      <!-- Contenedor de Vistas del Dashboard -->
+      <div class="dashboard-views">
+        
+        <!-- VISTA 1: RESUMEN -->
+        <div class="dash-view active" id="dash-resumen">
+          <div class="kpi-grid">
+            <!-- KPI: Total -->
+            <div class="kpi-card" onclick="filtrarPorPestana('todos')">
+              <div class="kpi-info">
+                <span class="kpi-title">Total Clientes</span>
+                <span class="kpi-value" id="kpi-total">0</span>
+                <div class="kpi-progress-bar"><div class="kpi-progress-fill" id="kpi-total-progress"></div></div>
+              </div>
+              <div class="kpi-icon icon-user">T</div>
+            </div>
 
-        <div class="kpi-card" onclick="filtrarPorPestana('confirmado')" title="Ver confirmados">
-          <div class="kpi-info">
-            <span class="kpi-title">Confirmados</span>
-            <span class="kpi-value text-success" id="kpi-confirmados">0</span>
-            <span class="kpi-sub">Asistencia segura</span>
-          </div>
-          <div class="kpi-icon icon-check">C</div>
-        </div>
+            <!-- KPI: Contactados -->
+            <div class="kpi-card" onclick="filtrarPorPestana('todos')">
+              <div class="kpi-info">
+                <span class="kpi-title">Contactados</span>
+                <span class="kpi-value text-info" id="kpi-contactados">0</span>
+                <span class="kpi-sub" id="kpi-contactados-pct">0%</span>
+              </div>
+              <div class="kpi-icon icon-contact">C</div>
+            </div>
 
-        <div class="kpi-card" onclick="filtrarPorPestana('dijo_que_si')" title="Ver los que dijeron que sí">
-          <div class="kpi-info">
-            <span class="kpi-title">Dijeron que Sí</span>
-            <span class="kpi-value text-success" id="kpi-dijo-si">0</span>
-            <span class="kpi-sub">Respuesta positiva</span>
-          </div>
-          <div class="kpi-icon icon-thumb">S</div>
-        </div>
+            <!-- KPI: No Contactados -->
+            <div class="kpi-card" onclick="filtrarPorPestana('pendiente')">
+              <div class="kpi-info">
+                <span class="kpi-title">No Contactados</span>
+                <span class="kpi-value text-muted" id="kpi-no-contactados">0</span>
+                <span class="kpi-sub" id="kpi-no-contactados-pct">0%</span>
+              </div>
+              <div class="kpi-icon icon-nocontact">N</div>
+            </div>
 
-        <div class="kpi-card" onclick="filtrarPorPestana('posiblemente')" title="Ver posibles">
-          <div class="kpi-info">
-            <span class="kpi-title">Posiblemente</span>
-            <span class="kpi-value text-warning" id="kpi-posiblemente">0</span>
-            <span class="kpi-sub">En seguimiento</span>
-          </div>
-          <div class="kpi-icon icon-thinking">P</div>
-        </div>
+            <!-- KPI: Dijo que Sí (Temporal) -->
+            <div class="kpi-card" onclick="filtrarPorPestana('dijo_que_si')">
+              <div class="kpi-info">
+                <span class="kpi-title">Dijo que Sí</span>
+                <span class="kpi-value text-warning" id="kpi-dijo-si">0</span>
+                <span class="kpi-sub">Pendientes de confirmar</span>
+              </div>
+              <div class="kpi-icon icon-thumb">S</div>
+            </div>
 
-        <div class="kpi-card" style="cursor: default;" title="Tasa de conversión">
-          <div class="kpi-info">
-            <span class="kpi-title">Tasa de Éxito</span>
-            <span class="kpi-value" id="kpi-exito">0%</span>
-            <span class="kpi-sub">Sobre el total</span>
-          </div>
-          <div class="kpi-icon icon-chart">%</div>
-        </div>
-      </div>
+            <!-- KPI: Confirmados -->
+            <div class="kpi-card" onclick="filtrarPorPestana('confirmado')">
+              <div class="kpi-info">
+                <span class="kpi-title">Confirmados</span>
+                <span class="kpi-value text-success" id="kpi-confirmados">0</span>
+                <span class="kpi-sub" id="kpi-confirmados-pct">0%</span>
+              </div>
+              <div class="kpi-icon icon-check">C</div>
+            </div>
 
-      <div class="charts-column">
-        <div class="chart-box wide" title="Haz clic en una barra para filtrar por método">
-          <h3>Métodos de Contacto Utilizados</h3>
-          <div class="canvas-wrapper">
-            <canvas id="chart-metodos"></canvas>
-          </div>
-        </div>
-
-        <div class="chart-row">
-          <div class="chart-box" title="Haz clic en una porción para filtrar por estado">
-            <h3>Distribución de Estados</h3>
-            <div class="canvas-wrapper">
-              <canvas id="chart-estados"></canvas>
+            <!-- KPI: Tasa de Éxito Real -->
+            <div class="kpi-card" style="cursor: default;">
+              <div class="kpi-info">
+                <span class="kpi-title">Tasa de Éxito Real</span>
+                <span class="kpi-value" id="kpi-exito">0%</span>
+                <span class="kpi-sub">Confirmados / Total</span>
+              </div>
+              <div class="kpi-icon icon-chart">%</div>
             </div>
           </div>
-          <div class="chart-box" title="Haz clic en una barra para filtrar por estado">
-            <h3>Top Estados</h3>
-            <div class="canvas-wrapper">
-              <canvas id="chart-top-estados"></canvas>
+
+          <div class="charts-grid">
+            <div class="chart-box">
+              <h3>Métodos de Contacto</h3>
+              <div class="canvas-wrapper"><canvas id="chart-metodos"></canvas></div>
             </div>
           </div>
         </div>
+
+        <!-- VISTA 2: DETALLE -->
+        <div class="dash-view" id="dash-detalle">
+          <div class="charts-grid two-cols">
+            <div class="chart-box">
+              <h3>Distribución de Estados</h3>
+              <div class="canvas-wrapper"><canvas id="chart-estados"></canvas></div>
+            </div>
+            <div class="chart-box">
+              <h3>Top Estados</h3>
+              <div class="canvas-wrapper"><canvas id="chart-top-estados"></canvas></div>
+            </div>
+          </div>
+          <div class="charts-grid" style="margin-top: 16px;">
+            <div class="chart-box">
+              <h3>Razones de Retiro (Dijo que No)</h3>
+              <div class="canvas-wrapper"><canvas id="chart-razones"></canvas></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- VISTA 3: PROGRESO -->
+        <div class="dash-view" id="dash-progreso">
+          <div class="charts-grid">
+            <div class="chart-box" style="height: 300px;">
+              <h3>Embudo de Conversión</h3>
+              <div class="canvas-wrapper"><canvas id="chart-embudo"></canvas></div>
+            </div>
+          </div>
+        </div>
+
       </div>
     </section>
 
+    <!-- PESTAÑAS PRINCIPALES (para la tabla) -->
     <nav class="tabs no-print" id="tabs">
       <button class="tab active" data-tab="resumen">Resumen</button>
       <button class="tab" data-tab="pendiente">Pendientes</button>
@@ -116,6 +154,7 @@
       <button class="btn-clear-filters" onclick="limpiarFiltros()">Limpiar filtros</button>
     </div>
 
+    <!-- FORMULARIO -->
     <section class="add-client-section no-print">
       <form id="client-form">
         <input type="text" id="client-name" placeholder="Nombre del cliente" required>
@@ -132,6 +171,7 @@
       </div>
     </section>
 
+    <!-- BUSCADOR Y FILTROS -->
     <section class="pagination-bar no-print">
       <div class="search-box">
         <input type="text" id="search-input" placeholder="Buscar por nombre o teléfono..." oninput="filtrarClientes()">
@@ -157,6 +197,7 @@
       </div>
     </section>
 
+    <!-- TABLA -->
     <section class="table-container">
       <table>
         <thead>
@@ -165,7 +206,7 @@
             <th>Teléfono</th>
             <th class="center">Método</th>
             <th class="center">Estado</th>
-            <th class="center">Razón de Retiro</th> <!-- NUEVA COLUMNA -->
+            <th class="center">Razón de Retiro</th>
             <th class="center no-print">Acción</th>
           </tr>
         </thead>

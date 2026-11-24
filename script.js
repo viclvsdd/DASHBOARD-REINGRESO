@@ -29,7 +29,6 @@ const ESTADOS = {
   confirmado:     { label: 'Confirmado',     clase: 'estado-confirmado', color: '#2e7d4f' },
 };
 
-// Tus nuevas opciones de Razón de Retiro con las clases exactas
 const RAZONES_RETIRO = {
   ninguna:          { label: '',                                       clase: 'razon-ninguna' },
   no_interesa:      { label: 'No le interesa',                         clase: 'razon-no-interesa' },
@@ -106,6 +105,7 @@ function showConfirm(message) {
 const app = {
   clientes: [], filtrados: [], pagina: 1, modoImprimirTodo: false,
   pestana: 'resumen', filtroMetodo: 'todos', busqueda: '',
+  dashTab: 'resumen'
 };
 
 const cli = (id, nombre, telefono, metodo = 'sin_contacto', estado = 'pendiente', razonRetiro = 'ninguna') => ({ id, nombre, telefono, metodo, estado, razonRetiro });
@@ -395,17 +395,11 @@ function guardar() {
 
 function migrarCliente(c) {
   if (c.metodo && METODOS[c.metodo] && c.estado && ESTADOS[c.estado]) {
-    return { 
-      metodo: c.metodo, 
-      estado: c.estado, 
-      razonRetiro: c.razonRetiro || 'ninguna' 
-    };
+    return { metodo: c.metodo, estado: c.estado, razonRetiro: c.razonRetiro || 'ninguna' };
   }
-  
   let metodo = 'sin_contacto', estado = 'pendiente';
   if (c.llamado && c.escrito) metodo = 'ambos'; else if (c.llamado) metodo = 'llamada'; else if (c.escrito) metodo = 'escrito';
   if (c.confirmado) estado = 'confirmado'; else if (c.noContactado) estado = 'no_contactado'; else if (c.escrito) estado = 'se_le_escribio'; else if (c.llamado) estado = 'no_respondio';
-  
   return { metodo, estado, razonRetiro: 'ninguna' };
 }
 
@@ -442,7 +436,6 @@ function actualizarBarraFiltros() {
   const bar = $('active-filters-bar');
   const chipsContainer = $('filter-chips');
   chipsContainer.innerHTML = '';
-  
   let hayFiltros = false;
 
   if (app.pestana !== 'resumen' && app.pestana !== 'todos') {
@@ -457,7 +450,6 @@ function actualizarBarraFiltros() {
     hayFiltros = true;
     chipsContainer.innerHTML += `<span class="filter-chip">Búsqueda: "${app.busqueda}"</span>`;
   }
-
   bar.style.display = hayFiltros ? 'flex' : 'none';
 }
 
@@ -467,9 +459,7 @@ window.limpiarFiltros = function() {
   app.busqueda = '';
   $('search-input').value = '';
   $('filtro-metodo').value = 'todos';
-  
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === 'resumen'));
-  
   aplicarFiltros();
   showToast('Filtros limpiados', 'info');
 };
@@ -564,27 +554,41 @@ function renderizarTabla() {
 /* ================================================================
    6. DASHBOARD Y GRÁFICOS INTERACTIVOS
    ================================================================ */
-let chartMetodos, chartEstados, chartTopEstados;
+let chartMetodos, chartEstados, chartTopEstados, chartRazones, chartEmbudo;
 
 function actualizarDashboard() {
+  // --- CÁLCULO DE NUEVOS KPIs ---
   const total = app.clientes.length;
-  const countEstado = (e) => app.clientes.filter(c => c.estado === e).length;
-  const countMetodo = (m) => app.clientes.filter(c => c.metodo === m).length;
+  const contactados = app.clientes.filter(c => c.metodo !== 'sin_contacto').length;
+  const noContactados = total - contactados;
+  const dijoSi = app.clientes.filter(c => c.estado === 'dijo_que_si').length;
+  const confirmados = app.clientes.filter(c => c.estado === 'confirmado').length;
 
-  const confirmados = countEstado('confirmado');
-  const dijoSi = countEstado('dijo_que_si');
-  const posiblemente = countEstado('posiblemente');
-  const tasaExito = total > 0 ? Math.round(((confirmados + dijoSi) / total) * 100) : 0;
+  const pctContactados = total > 0 ? Math.round((contactados / total) * 100) : 0;
+  const pctNoContactados = total > 0 ? Math.round((noContactados / total) * 100) : 0;
+  const pctConfirmados = total > 0 ? Math.round((confirmados / total) * 100) : 0;
+  const tasaExito = total > 0 ? Math.round((confirmados / total) * 100) : 0;
 
+  // Renderizar en HTML
   if ($('kpi-total')) $('kpi-total').textContent = total;
-  if ($('kpi-confirmados')) $('kpi-confirmados').textContent = confirmados;
+  if ($('kpi-contactados')) $('kpi-contactados').textContent = contactados;
+  if ($('kpi-contactados-pct')) $('kpi-contactados-pct').textContent = `${pctContactados}% del total`;
+  if ($('kpi-no-contactados')) $('kpi-no-contactados').textContent = noContactados;
+  if ($('kpi-no-contactados-pct')) $('kpi-no-contactados-pct').textContent = `${pctNoContactados}% del total`;
   if ($('kpi-dijo-si')) $('kpi-dijo-si').textContent = dijoSi;
-  if ($('kpi-posiblemente')) $('kpi-posiblemente').textContent = posiblemente;
+  if ($('kpi-confirmados')) $('kpi-confirmados').textContent = confirmados;
+  if ($('kpi-confirmados-pct')) $('kpi-confirmados-pct').textContent = `${pctConfirmados}% del total`;
   if ($('kpi-exito')) $('kpi-exito').textContent = `${tasaExito}%`;
+  
+  if ($('kpi-total-progress')) {
+    $('kpi-total-progress').style.width = `${pctContactados}%`;
+    $('kpi-total-progress').style.backgroundColor = pctContactados > 50 ? 'var(--success)' : 'var(--info)';
+  }
 
-  // Gráfico de Métodos
+  // --- GRÁFICO DE MÉTODOS ---
+  const countMetodo = (m) => app.clientes.filter(c => c.metodo === m).length;
   const dataMetodos = [ countMetodo('sin_contacto'), countMetodo('llamada'), countMetodo('escrito'), countMetodo('ambos') ];
-  const coloresMetodos = ['#d8ccbd', '#3a7ca5', '#8c2a41', '#d4a373'];
+  const coloresMetodos = ['#e2e8f0', '#3a7ca5', '#8c2a41', '#d4a373'];
   const labelsMetodos = ['Sin Contacto', 'Llamada', 'Escrito', 'Ambos'];
   const keysMetodos = ['sin_contacto', 'llamada', 'escrito', 'ambos'];
 
@@ -596,7 +600,7 @@ function actualizarDashboard() {
     if (ctx) {
       chartMetodos = new Chart(ctx, {
         type: 'bar',
-        data: { labels: labelsMetodos, datasets: [{ label: 'Cantidad', data: dataMetodos, backgroundColor: coloresMetodos, borderRadius: 4 }] },
+        data: { labels: labelsMetodos, datasets: [{ label: 'Clientes', data: dataMetodos, backgroundColor: coloresMetodos, borderRadius: 4 }] },
         options: { 
           responsive: true, maintainAspectRatio: false, 
           plugins: { legend: { display: false } }, 
@@ -617,7 +621,8 @@ function actualizarDashboard() {
     }
   }
 
-  // Gráfico de Estados (Dona)
+  // --- GRÁFICO DE ESTADOS (DONA) ---
+  const countEstado = (e) => app.clientes.filter(c => c.estado === e).length;
   const labelsEstados = Object.values(ESTADOS).map(e => e.label);
   const dataEstados = Object.keys(ESTADOS).map(k => countEstado(k));
   const coloresEstados = Object.values(ESTADOS).map(e => e.color);
@@ -661,7 +666,7 @@ function actualizarDashboard() {
     }
   }
 
-  // Gráfico Top Estados
+  // --- GRÁFICO TOP ESTADOS ---
   const estadosOrdenados = Object.entries(ESTADOS).map(([key, def]) => {
     return { key, label: def.label, count: countEstado(key), color: def.color };
   }).sort((a, b) => b.count - a.count).slice(0, 4);
@@ -700,6 +705,68 @@ function actualizarDashboard() {
       });
     }
   }
+
+  // --- NUEVO GRÁFICO: RAZONES DE RETIRO ---
+  const countRazon = (r) => app.clientes.filter(c => c.razonRetiro === r).length;
+  const labelsRazones = Object.values(RAZONES_RETIRO).filter(r => r.label !== '').map(r => r.label);
+  const keysRazones = Object.keys(RAZONES_RETIRO).filter(k => k !== 'ninguna');
+  const dataRazones = keysRazones.map(k => countRazon(k));
+  const coloresRazones = ['#4b5563', '#b91c1c', '#c2410c', '#a21caf'];
+
+  if (chartRazones) {
+    chartRazones.data.datasets[0].data = dataRazones;
+    chartRazones.update();
+  } else {
+    const ctx = document.getElementById('chart-razones')?.getContext('2d');
+    if (ctx) {
+      chartRazones = new Chart(ctx, {
+        type: 'bar',
+        data: { labels: labelsRazones, datasets: [{ data: dataRazones, backgroundColor: coloresRazones, borderRadius: 4 }] },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+        }
+      });
+    }
+  }
+
+  // --- NUEVO GRÁFICO: EMBUDO DE CONVERSIÓN ---
+  const dataEmbudo = [
+    total,
+    contactados,
+    dijoSi,
+    confirmados
+  ];
+  const labelsEmbudo = ['Total Base', 'Contactados', 'Dijeron que Sí', 'Confirmados'];
+  const coloresEmbudo = ['#cbd5e1', '#3a7ca5', '#d4a373', '#15803d'];
+
+  if (chartEmbudo) {
+    chartEmbudo.data.datasets[0].data = dataEmbudo;
+    chartEmbudo.update();
+  } else {
+    const ctx = document.getElementById('chart-embudo')?.getContext('2d');
+    if (ctx) {
+      chartEmbudo = new Chart(ctx, {
+        type: 'bar',
+        data: { 
+          labels: labelsEmbudo, 
+          datasets: [{ 
+            label: 'Clientes', 
+            data: dataEmbudo, 
+            backgroundColor: coloresEmbudo, 
+            borderRadius: 4 
+          }] 
+        },
+        options: {
+          indexAxis: 'y', // Barras horizontales para efecto embudo
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: { x: { beginAtZero: true, ticks: { stepSize: 1 } } }
+        }
+      });
+    }
+  }
 }
 
 /* ================================================================
@@ -712,21 +779,28 @@ window.actualizarTelefono = function (id, tel) {
 
 window.cambiarMetodo = function (id, met) {
   const c = app.clientes.find(x => x.id === id);
-  if (c) { c.metodo = met; guardar(); aplicarFiltros(); }
+  if (c) { 
+    // Lógica Opción A: Si ya se le escribió y se cambia a llamada, pasa a ambos
+    if (c.metodo === 'llamada' && met === 'escrito') c.metodo = 'ambos';
+    else if (c.metodo === 'escrito' && met === 'llamada') c.metodo = 'ambos';
+    else c.metodo = met; 
+    guardar(); aplicarFiltros(); 
+  }
 };
 
 window.cambiarEstado = function (id, est) {
   const c = app.clientes.find(x => x.id === id);
-  if (c) { c.estado = est; guardar(); aplicarFiltros(); }
+  if (c) { 
+    c.estado = est; 
+    // Lógica Opción A: Si el estado es de escritura pero el método era llamada, autocorregir a ambos
+    if ((est === 'se_le_escribio') && c.metodo === 'llamada') c.metodo = 'ambos';
+    guardar(); aplicarFiltros(); 
+  }
 };
 
 window.cambiarRazonRetiro = function (id, razon) {
   const c = app.clientes.find(x => x.id === id);
-  if (c) { 
-    c.razonRetiro = razon; 
-    guardar(); 
-    renderizarTabla();
-  }
+  if (c) { c.razonRetiro = razon; guardar(); renderizarTabla(); }
 };
 
 window.eliminarCliente = async function (id) {
@@ -750,7 +824,6 @@ $('client-form').addEventListener('submit', (e) => {
     showToast('El cliente ya existe', 'warning'); return;
   }
   const nuevoId = app.clientes.length > 0 ? Math.max(...app.clientes.map(c => c.id)) + 1 : 1;
-  
   app.clientes.push({ id: nuevoId, nombre, telefono: tel, metodo: 'sin_contacto', estado: 'pendiente', razonRetiro: 'ninguna' });
   guardar();
   
@@ -768,6 +841,7 @@ $('client-form').addEventListener('submit', (e) => {
   showToast('Cliente agregado', 'success');
 });
 
+// Pestañas principales (Tabla)
 $('tabs').addEventListener('click', (e) => {
   const btn = e.target.closest('.tab');
   if (!btn) return;
@@ -775,6 +849,26 @@ $('tabs').addEventListener('click', (e) => {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   btn.classList.add('active');
   aplicarFiltros();
+});
+
+// NUEVO: Pestañas internas del Dashboard
+$('dash-tabs').addEventListener('click', (e) => {
+  const btn = e.target.closest('.dash-tab');
+  if (!btn) return;
+  
+  const target = btn.dataset.dash;
+  app.dashTab = target;
+  
+  // Cambiar clases activas de las pestañas
+  document.querySelectorAll('.dash-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  
+  // Cambiar visibilidad de las vistas con animación
+  document.querySelectorAll('.dash-view').forEach(v => v.classList.remove('active'));
+  const targetView = document.getElementById(`dash-${target}`);
+  if (targetView) {
+    targetView.classList.add('active');
+  }
 });
 
 window.cambiarPagina = function (dir) {
@@ -798,7 +892,6 @@ window.exportarCSV = function () {
     const razon = RAZONES_RETIRO[c.razonRetiro]?.label || c.razonRetiro || 'Ninguna';
     rows.push([c.id, `"${c.nombre}"`, `"${c.telefono}"`, METODOS[c.metodo].label, ESTADOS[c.estado].label, razon]);
   });
-  
   const csv = rows.map(r => r.join(',')).join('\n');
   const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv' });
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `clientes_lista_${new Date().toISOString().slice(0,10)}.csv`; a.click();
@@ -807,36 +900,21 @@ window.exportarCSV = function () {
 
 window.exportarEstadisticasExcel = function () {
   const total = app.clientes.length;
-  if (total === 0) {
-    showToast('No hay datos para exportar', 'warning');
-    return;
-  }
+  if (total === 0) { showToast('No hay datos para exportar', 'warning'); return; }
 
   const countEstado = (e) => app.clientes.filter(c => c.estado === e).length;
   const countMetodo = (m) => app.clientes.filter(c => c.metodo === m).length;
-
+  const contactados = app.clientes.filter(c => c.metodo !== 'sin_contacto').length;
+  const noContactados = total - contactados;
+  
   const confirmados = countEstado('confirmado');
   const dijoSi = countEstado('dijo_que_si');
-  const tasaExito = total > 0 ? Math.round(((confirmados + dijoSi) / total) * 100) : 0;
+  const tasaExito = total > 0 ? Math.round((confirmados / total) * 100) : 0;
 
   let html = `
     <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
     <head>
       <meta charset="UTF-8">
-      <!--[if gte mso 9]>
-      <xml>
-        <x:ExcelWorkbook>
-          <x:ExcelWorksheets>
-            <x:ExcelWorksheet>
-              <x:Name>Estadisticas</x:Name>
-              <x:WorksheetOptions>
-                <x:DisplayGridlines/>
-              </x:WorksheetOptions>
-            </x:ExcelWorksheet>
-          </x:ExcelWorksheets>
-        </x:ExcelWorkbook>
-      </xml>
-      <![endif]-->
       <style>
         table { border-collapse: collapse; font-family: Arial, sans-serif; }
         th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
@@ -849,16 +927,15 @@ window.exportarEstadisticasExcel = function () {
       <p>Fecha de exportación: ${new Date().toLocaleString()}</p>
       
       <table>
-        <!-- SECCIÓN 1: RESUMEN GENERAL -->
         <tr><th colspan="3" class="section-title">1. Resumen General (KPIs)</th></tr>
         <tr><th>Métrica</th><th>Cantidad</th><th>Porcentaje</th></tr>
         <tr><td>Total Clientes</td><td>${total}</td><td>100%</td></tr>
+        <tr><td>Contactados</td><td>${contactados}</td><td>${Math.round((contactados/total)*100)}%</td></tr>
+        <tr><td>No Contactados</td><td>${noContactados}</td><td>${Math.round((noContactados/total)*100)}%</td></tr>
+        <tr><td>Dijeron que Sí (Temporal)</td><td>${dijoSi}</td><td>${Math.round((dijoSi/total)*100)}%</td></tr>
         <tr><td>Confirmados</td><td>${confirmados}</td><td>${Math.round((confirmados/total)*100)}%</td></tr>
-        <tr><td>Dijeron que Sí</td><td>${dijoSi}</td><td>${Math.round((dijoSi/total)*100)}%</td></tr>
-        <tr><td>Posiblemente</td><td>${countEstado('posiblemente')}</td><td>${Math.round((countEstado('posiblemente')/total)*100)}%</td></tr>
-        <tr><td><strong>Tasa de Éxito (Confirmados + Sí)</strong></td><td><strong>${tasaExito}%</strong></td><td>-</td></tr>
+        <tr><td><strong>Tasa de Éxito (Solo Confirmados)</strong></td><td><strong>${tasaExito}%</strong></td><td>-</td></tr>
         
-        <!-- SECCIÓN 2: MÉTODOS DE CONTACTO -->
         <tr><th colspan="3" class="section-title">2. Métodos de Contacto</th></tr>
         <tr><th>Método</th><th>Cantidad</th><th>Porcentaje</th></tr>
         <tr><td>Sin Contacto</td><td>${countMetodo('sin_contacto')}</td><td>${Math.round((countMetodo('sin_contacto')/total)*100)}%</td></tr>
@@ -866,7 +943,6 @@ window.exportarEstadisticasExcel = function () {
         <tr><td>Escrito</td><td>${countMetodo('escrito')}</td><td>${Math.round((countMetodo('escrito')/total)*100)}%</td></tr>
         <tr><td>Ambos (Llamada y Escrito)</td><td>${countMetodo('ambos')}</td><td>${Math.round((countMetodo('ambos')/total)*100)}%</td></tr>
 
-        <!-- SECCIÓN 3: DISTRIBUCIÓN DE ESTADOS -->
         <tr><th colspan="3" class="section-title">3. Distribución de Estados</th></tr>
         <tr><th>Estado</th><th>Cantidad</th><th>Porcentaje</th></tr>
         <tr><td>Pendiente</td><td>${countEstado('pendiente')}</td><td>${Math.round((countEstado('pendiente')/total)*100)}%</td></tr>
@@ -891,7 +967,6 @@ window.exportarEstadisticasExcel = function () {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-
   showToast('Estadísticas exportadas a Excel', 'success');
 };
 
